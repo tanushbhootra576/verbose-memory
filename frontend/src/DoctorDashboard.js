@@ -3,9 +3,7 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
-
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
-
 const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export default function DoctorDashboard() {
@@ -21,35 +19,30 @@ export default function DoctorDashboard() {
             .then(res => setPatient(res.data))
             .catch(err => console.error(err));
 
-        // Fetch vital history
-        axios.get(`${apiUrl}/api/vitals/${patientId}`)
-            .then(res => {
-                const sorted = res.data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                setHistory(sorted);
-                if (sorted.length > 0) {
-                    const latest = sorted[sorted.length - 1];
-                    setVitals({ hr: latest.heartRate, spO2: latest.spO2 });
-                }
-            });
+        // Fetch vital history with HTTP Polling (Fallback for Vercel WebSockets)
+        const fetchVitals = () => {
+            axios.get(`${apiUrl}/api/vitals/${patientId}`)
+                .then(res => {
+                    const sorted = res.data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    setHistory(sorted);
+                    if (sorted.length > 0) {
+                        const latest = sorted[sorted.length - 1];
+                        setVitals({ hr: latest.heartRate, spO2: latest.spO2 });
+                        
+                        if (latest.spO2 < 90 || latest.heartRate > 120 || latest.heartRate < 50) {
+                            setAlert('CRITICAL: Abnormal Vitals Detected!');
+                        } else {
+                            setAlert(null);
+                        }
+                    }
+                })
+                .catch(err => console.error(err));
+        };
+        
+        fetchVitals();
+        const interval = setInterval(fetchVitals, 2500); // 2.5s poll rate
 
-        // Real-time listener
-        const eventName = `vitals-${patientId}`;
-        socket.on(eventName, (data) => {
-            setVitals({ hr: data.heartRate, spO2: data.spO2 });
-            setHistory(prev => {
-                const next = [...prev, data];
-                if (next.length > 50) next.shift(); // keep last 50
-                return next;
-            });
-
-            if (data.spO2 < 90 || data.heartRate > 120 || data.heartRate < 50) {
-                setAlert('CRITICAL: Abnormal Vitals Detected!');
-            } else {
-                setAlert(null);
-            }
-        });
-
-        return () => socket.off(eventName);
+        return () => clearInterval(interval);
     }, [patientId]);
 
     const chartData = {
@@ -80,7 +73,7 @@ export default function DoctorDashboard() {
             </div>
 
             {alert && <div className="bg-red-500 text-white p-4 rounded-lg shadow-lg font-bold animate-pulse text-lg">{alert}</div>}
-
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Patient Details Panel */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -123,4 +116,3 @@ export default function DoctorDashboard() {
         </div>
     );
 }
-
