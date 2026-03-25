@@ -1,24 +1,32 @@
 const mongoose = require('mongoose');
 
 const PatientSchema = new mongoose.Schema({
+    patient_id: { type: String, unique: true },
+    device_id: String,
     name: String,
     age: Number,
     condition: String,
-    history: [String],
 });
 
 const VitalsSchema = new mongoose.Schema({
-    patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient' },
-    heartRate: Number,
-    spO2: Number,
+    patient_id: String,
+    device_id: String,
+    hr: Number,
+    spo2: Number,
+    temperature: Number,
+    latitude: Number,
+    longitude: Number,
+    condition: String,
     timestamp: { type: Date, default: Date.now },
 });
 
 const AmbulanceSchema = new mongoose.Schema({
-    ambulanceId: String,
-    location: { lat: Number, lng: Number },
+    ambulance_id: String,
+    patient_id: String,
+    latitude: Number,
+    longitude: Number,
     status: { type: String, enum: ['Available', 'Dispatched', 'Busy'], default: 'Available' },
-    assignedPatient: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', default: null },
+    timestamp: { type: Date, default: Date.now },
 });
 
 module.exports = {

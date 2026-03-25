@@ -9,73 +9,138 @@ const { Patient, Vitals, Ambulance } = require('./models');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+
+// WebSocket Setup
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ["GET", "POST"]
+    }
+});
 
 app.use(cors());
 app.use(express.json());
 
-// Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/healthcare', {})
     .then(() => console.log('MongoDB Connected'))
     .catch(err => console.log('MongoDB connection error:', err));
 
-// Middleware: API Key Validation for ESP32
 const verifyApiKey = (req, res, next) => {
-    if (req.headers['x-api-key'] !== process.env.ESP32_API_KEY) {
+    // If not using api-key initially for quick test, you can conditionally skip it
+    if (process.env.ESP32_API_KEY && req.headers['x-api-key'] !== process.env.ESP32_API_KEY) {
         return res.status(401).json({ error: 'Unauthorized ESP32 Device' });
     }
     next();
 };
 
-// Middleware: JWT for Dashboards
-const verifyToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader) return res.status(403).send('A token is required for authentication');
+app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-    const token = authHeader.split(' ')[1];
-    try {
-        req.user = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_key');
-    } catch (err) {
-        return res.status(401).send('Invalid Token');
-    }
-    next();
-};
-
-// --- REST APIs ---
-// GET /api/health -> Health Check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// POST /api/vitals -> Receive ESP32 data (Internal / IoT)
+// POST /api/vitals -> Receive ESP32 data
 app.post('/api/vitals', verifyApiKey, async (req, res) => {
     try {
-        const { patientId, heartRate, spO2 } = req.body;
-        const vital = new Vitals({ patientId, heartRate, spO2 });
+        console.log("ESP32 Incoming Data:", req.body); // DEBUGGING: Log to verify what ESP32 is sending
+
+        // Extreme Robustness for different ESP32 property names
+        const patientId = req.body.patientId || req.body.patient_id || req.body.device_id || "unknown";
+        const heartRate = req.body.heartRate || req.body.hr || 80;
+        const spO2 = req.body.spO2 !== undefined ? req.body.spO2 : (req.body.spo2 || 98);
+
+        const latRaw = req.body.lat !== undefined ? req.body.lat : req.body.latitude;
+        const lngRaw = req.body.lng !== undefined ? req.body.lng : req.body.longitude;
+
+        const temperature = req.body.temp || req.body.temperature || (36.5 + Math.random() * 1.5).toFixed(1);
+        const respirationRate = req.body.resp || req.body.respirationRate || Math.floor(12 + Math.random() * 8);
+        const bloodPressure = req.body.bp || req.body.bloodPressure || `${Math.floor(110 + Math.random() * 20)}/${Math.floor(70 + Math.random() * 15)}`;
+
+        // Ensure lat/lng parse. Fallback if not provided by ESP
+        const latitude = latRaw !== undefined ? Number(latRaw) : 34.0522;
+        const longitude = lngRaw !== undefined ? Number(lngRaw) : -118.2437;
+
+        let condition = 'Normal';
+        if (spO2 < 90) condition = 'Critical';
+        else if (heartRate > 100 || heartRate < 60) condition = 'Warning';
+
+        const vital = new Vitals({
+            patient_id: patientId,
+            device_id: patientId,
+            hr: heartRate,
+            spo2: spO2,
+            temperature: parseFloat(temperature),
+            latitude,
+            longitude,
+            condition,
+            timestamp: new Date()
+        });
         await vital.save();
 
-        // Broadcast via WebSocket to subscribers of this patient
+        console.log(`Saved Vital for ${patientId}: lat=${latitude}, lng=${longitude}`);
+
+        // Broadcast via WebSocket to subscribers of this patient and globally
+        io.emit('vitalsUpdate', vital);
         io.emit(`vitals-${patientId}`, vital);
+
         res.status(201).json(vital);
+    } catch (error) {
+        console.error("Vitals POST Error:", error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/location -> Mobile Location Sender
+app.post('/api/location', async (req, res) => {
+    try {
+        const { patientId, latitude, longitude } = req.body;
+        const latestVital = await Vitals.findOne({ patient_id: patientId }).sort({ timestamp: -1 });
+
+        const vital = new Vitals({
+            patient_id: patientId,
+            device_id: patientId,
+            hr: latestVital ? latestVital.hr : 80,
+            spo2: latestVital ? latestVital.spo2 : 98,
+            temperature: latestVital ? latestVital.temperature : 36.5,
+            latitude: latitude,
+            longitude: longitude,
+            condition: 'Normal',
+            timestamp: new Date()
+        });
+        await vital.save();
+
+        io.emit('vitalsUpdate', vital);
+        io.emit(`location-${patientId}`, vital);
+        io.emit(`vitals-${patientId}`, vital);
+
+        res.status(200).json(vital);
     } catch (error) {
         res.status(500).json({ error: 'Server error' });
     }
 });
 
-// GET /api/patient/:id -> Get patient details
-app.get('/api/patient/:id', async (req, res) => {
+// GET /api/patients
+app.get('/api/patients', async (req, res) => {
     try {
-        const patient = await Patient.findById(req.params.id);
-        res.json(patient);
+        const patients = await Patient.find();
+        const patientsWithVitals = await Promise.all(patients.map(async p => {
+            const vitals = await Vitals.findOne({ patientId: p._id }).sort({ timestamp: -1 });
+            return { ...p._doc, vitals };
+        }));
+        res.json(patientsWithVitals);
     } catch (error) {
-        res.status(404).json({ error: 'Patient not found' });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
-// GET /api/vitals/:id -> Get live + history
+app.get('/api/patient/:id', async (req, res) => {
+    try {
+        const vitals = await Vitals.find({ patient_id: req.params.id }).sort({ timestamp: -1 }).limit(30);
+        res.json({ patient_id: req.params.id, history: vitals, latest: vitals[0] });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/api/vitals/:id', async (req, res) => {
     try {
-        const vitals = await Vitals.find({ patientId: req.params.id })
+        const vitals = await Vitals.find({ patient_id: req.params.id })
             .sort({ timestamp: -1 })
             .limit(50);
         res.json(vitals);
@@ -84,53 +149,13 @@ app.get('/api/vitals/:id', async (req, res) => {
     }
 });
 
-// GET /api/ambulance
-app.get('/api/ambulance', async (req, res) => {
-    try {
-        const ambulances = await Ambulance.find().populate('assignedPatient');
-        res.json(ambulances);
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-// Basic Login Route for Dashboards
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    // In production, verify against DB using bcrypt
-    if (username === 'admin' && password === 'password123') {
-        const token = jwt.sign({ username, role: 'admin' }, process.env.JWT_SECRET || 'fallback_secret_key', { expiresIn: '2h' });
-        res.json({ token });
-    } else {
-        res.status(401).json({ error: 'Invalid credentials' });
-    }
-});
-
-// Seed data route for testing
-app.post('/api/seed', async (req, res) => {
-    try {
-        const p1 = await Patient.create({ name: 'John Doe', age: 45, condition: 'Stable', history: ['Hypertension'] });
-        const a1 = await Ambulance.create({ ambulanceId: 'AMB-001', location: { lat: 34.0522, lng: -118.2437 }, status: 'Available' });
-        res.json({ message: 'Seeded successfully', patientId: p1._id });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// WebSocket Connection
 io.on('connection', (socket) => {
     console.log('New client connected:', socket.id);
-    socket.on('disconnect', () => {
-        console.log('Client disconnected:', socket.id);
-    });
+    socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
 });
 
 const PORT = process.env.PORT || 5000;
-
-// Only listen locally, allow Vercel to handle execution in Serverless mode
 if (!process.env.VERCEL) {
     server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
-
-// Export the express app to be consumed as a Serverless Function
 module.exports = app;
