@@ -9,6 +9,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 export default function Doctor() {
     const [mainVitals, setMainVitals] = useState({ hr: '--', spo2: '--', temperature: '--', condition: 'Waiting' });
     const [history, setHistory] = useState([]);
+    const disableSocket = process.env.REACT_APP_DISABLE_SOCKET === 'true';
 
     // Mock patients
     const [mockPatients, setMockPatients] = useState([
@@ -19,29 +20,33 @@ export default function Doctor() {
 
     useEffect(() => {
         const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-        const socket = io(apiUrl);
+        let socket;
 
-        socket.on('vitalsUpdate', (data) => {
-            console.log('[Doctor] vitalsUpdate', data);
-            // Assume the first incoming data is our ESP32 target
-            setMainVitals({
-                hr: data.hr ?? data.heartRate ?? '--',
-                spo2: data.spo2 ?? data.spO2 ?? '--',
-                temperature: data.temperature ?? '--',
-                condition: data.condition || 'Normal',
-                timestamp: data.timestamp
+        if (!disableSocket) {
+            socket = io(apiUrl);
+            socket.on('vitalsUpdate', (data) => {
+                console.log('[Doctor] vitalsUpdate', data);
+                setMainVitals({
+                    hr: data.hr ?? data.heartRate ?? '--',
+                    spo2: data.spo2 ?? data.spO2 ?? '--',
+                    temperature: data.temperature ?? '--',
+                    condition: data.condition || 'Normal',
+                    timestamp: data.timestamp
+                });
+                setHistory(prev => {
+                    const normalized = {
+                        hr: data.hr ?? data.heartRate ?? 0,
+                        spo2: data.spo2 ?? data.spO2 ?? 0,
+                        temperature: data.temperature ?? 0,
+                        timestamp: data.timestamp || Date.now()
+                    };
+                    const newHist = [...prev, normalized].slice(-20);
+                    return newHist;
+                });
             });
-            setHistory(prev => {
-                const normalized = {
-                    hr: data.hr ?? data.heartRate ?? 0,
-                    spo2: data.spo2 ?? data.spO2 ?? 0,
-                    temperature: data.temperature ?? 0,
-                    timestamp: data.timestamp || Date.now()
-                };
-                const newHist = [...prev, normalized].slice(-20);
-                return newHist;
-            });
-        });
+        } else {
+            console.log('[Doctor] Socket disabled, realtime off on this host');
+        }
 
         // Simulate mock updates
         const int = setInterval(() => {
@@ -52,8 +57,8 @@ export default function Doctor() {
             })));
         }, 3000);
 
-        return () => { socket.disconnect(); clearInterval(int); };
-    }, []);
+        return () => { if (socket) socket.disconnect(); clearInterval(int); };
+    }, [disableSocket]);
 
     const chartData = {
         labels: history.map(h => new Date(h.timestamp || Date.now()).toLocaleTimeString()),

@@ -27,33 +27,48 @@ const getIcon = (condition) => {
 
 export default function Management() {
     const [ambulances, setAmbulances] = useState([]);
+    const disableSocket = process.env.REACT_APP_DISABLE_SOCKET === 'true';
 
     useEffect(() => {
         const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-        axios.get(`${apiUrl}/api/ambulances`).then(res => {
-            const data = res.data.map(a => ({
-                ...a,
-                hr: a.hr ?? '--',
-                spo2: a.spo2 ?? '--',
-                temp: a.temperature ?? '--',
-                condition: a.condition || 'Normal'
-            }));
-            setAmbulances(data);
-            console.log('[Management] initial ambulances', data);
-        }).catch(err => console.error('Ambulance fetch error', err));
 
-        const socket = io(apiUrl);
-        socket.on('locationUpdate', (update) => {
-            console.log('[Management] locationUpdate', update);
-            setAmbulances(prev => {
-                const next = prev.map(a => a.ambulance_id === update.ambulance_id ? { ...a, ...update } : a);
-                const exists = next.find(a => a.ambulance_id === update.ambulance_id);
-                return exists ? next : [...next, update];
+        const fetchAmbulances = () => {
+            axios.get(`${apiUrl}/api/ambulances`).then(res => {
+                const data = res.data.map(a => ({
+                    ...a,
+                    hr: a.hr ?? '--',
+                    spo2: a.spo2 ?? '--',
+                    temp: a.temperature ?? '--',
+                    condition: a.condition || 'Normal'
+                }));
+                setAmbulances(data);
+                console.log('[Management] initial/poll ambulances', data);
+            }).catch(err => console.error('Ambulance fetch error', err));
+        };
+
+        fetchAmbulances();
+        const poll = setInterval(fetchAmbulances, 10000);
+
+        let socket;
+        if (!disableSocket) {
+            socket = io(apiUrl);
+            socket.on('locationUpdate', (update) => {
+                console.log('[Management] locationUpdate', update);
+                setAmbulances(prev => {
+                    const next = prev.map(a => a.ambulance_id === update.ambulance_id ? { ...a, ...update } : a);
+                    const exists = next.find(a => a.ambulance_id === update.ambulance_id);
+                    return exists ? next : [...next, update];
+                });
             });
-        });
+        } else {
+            console.log('[Management] Socket disabled, using polling only');
+        }
 
-        return () => socket.disconnect();
-    }, []);
+        return () => {
+            if (socket) socket.disconnect();
+            clearInterval(poll);
+        };
+    }, [disableSocket]);
 
     const critCount = ambulances.filter(a => a.condition === 'Critical').length;
 

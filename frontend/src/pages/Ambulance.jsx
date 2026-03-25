@@ -39,23 +39,39 @@ export default function Ambulance() {
         latitude: 34.05, longitude: -118.24,
         condition: 'Unknown', timestamp: null
     });
+    const disableSocket = process.env.REACT_APP_DISABLE_SOCKET === 'true';
 
     useEffect(() => {
         const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-        axios.get(`${apiUrl}/api/ambulance/${id}`)
-            .then(res => {
-                setData(res.data);
-                console.log('[Ambulance] initial', res.data);
-            })
-            .catch(err => console.error('Ambulance fetch error', err));
 
-        const socket = io(apiUrl);
-        socket.on(`ambulance-${id}`, (update) => {
-            console.log('[Ambulance] socket update', update);
-            setData(prev => ({ ...prev, ...update }));
-        });
-        return () => socket.disconnect();
-    }, [id]);
+        const fetchAmb = () => {
+            axios.get(`${apiUrl}/api/ambulance/${id}`)
+                .then(res => {
+                    setData(res.data);
+                    console.log('[Ambulance] initial/poll', res.data);
+                })
+                .catch(err => console.error('Ambulance fetch error', err));
+        };
+
+        fetchAmb();
+        const poll = setInterval(fetchAmb, 8000);
+
+        let socket;
+        if (!disableSocket) {
+            socket = io(apiUrl);
+            socket.on(`ambulance-${id}`, (update) => {
+                console.log('[Ambulance] socket update', update);
+                setData(prev => ({ ...prev, ...update }));
+            });
+        } else {
+            console.log('[Ambulance] Socket disabled, using polling only');
+        }
+
+        return () => {
+            if (socket) socket.disconnect();
+            clearInterval(poll);
+        };
+    }, [id, disableSocket]);
 
     return (
         <div className="h-[85vh] flex flex-col bg-white dark:bg-gray-800 rounded-3xl overflow-hidden shadow-sm border dark:border-gray-700">

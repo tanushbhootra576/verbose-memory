@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const disableSocket = process.env.REACT_APP_DISABLE_SOCKET === 'true';
 
 export default function MobileTracker() {
     const [patientId, setPatientId] = useState('');
@@ -12,7 +13,7 @@ export default function MobileTracker() {
     const [lastSync, setLastSync] = useState(null);
 
     useEffect(() => {
-        if (!patientId) return;
+        if (!patientId || disableSocket) return;
 
         const socket = io(apiUrl);
         socket.on(`vitals-${patientId}`, (data) => {
@@ -27,6 +28,10 @@ export default function MobileTracker() {
     const startTracking = () => {
         if (!patientId) {
             setErrorMsg('Please enter Patient ID');
+            return;
+        }
+        if (disableSocket) {
+            setErrorMsg('Realtime disabled on this host');
             return;
         }
         setStatus('active');
