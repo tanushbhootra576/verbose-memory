@@ -31,13 +31,25 @@ export default function Management() {
     useEffect(() => {
         const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
         axios.get(`${apiUrl}/api/ambulances`).then(res => {
-            const data = res.data.map(a => ({ ...a, hr: '--', spo2: '--', temp: '--', condition: 'Normal' }));
+            const data = res.data.map(a => ({
+                ...a,
+                hr: a.hr ?? '--',
+                spo2: a.spo2 ?? '--',
+                temp: a.temperature ?? '--',
+                condition: a.condition || 'Normal'
+            }));
             setAmbulances(data);
-        });
+            console.log('[Management] initial ambulances', data);
+        }).catch(err => console.error('Ambulance fetch error', err));
 
         const socket = io(apiUrl);
         socket.on('locationUpdate', (update) => {
-            setAmbulances(prev => prev.map(a => a.ambulance_id === update.ambulance_id ? { ...a, ...update } : a));
+            console.log('[Management] locationUpdate', update);
+            setAmbulances(prev => {
+                const next = prev.map(a => a.ambulance_id === update.ambulance_id ? { ...a, ...update } : a);
+                const exists = next.find(a => a.ambulance_id === update.ambulance_id);
+                return exists ? next : [...next, update];
+            });
         });
 
         return () => socket.disconnect();
@@ -50,11 +62,11 @@ export default function Management() {
             <div className="md:col-span-2 bg-white dark:bg-gray-800 rounded-2xl p-4 shadow h-[600px] flex flex-col">
                 <h2 className="text-xl font-bold dark:text-white mb-4">Live Fleet Tracking</h2>
                 <div className="flex-1 rounded-xl overflow-hidden z-0">
-                    {ambulances.length > 0 && (
-                        <MapContainer center={[34.05, -118.24]} zoom={11} style={{ height: '100%', width: '100%' }}>
+                    {ambulances.filter(a => a.latitude && a.longitude).length > 0 && (
+                        <MapContainer center={[ambulances[0].latitude || 34.05, ambulances[0].longitude || -118.24]} zoom={11} style={{ height: '100%', width: '100%' }}>
                             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                            {ambulances.map(amb => (
-                                <Marker key={amb.ambulance_id} position={[amb.latitude || amb.lat, amb.longitude || amb.lng]} icon={getIcon(amb.condition)}>
+                            {ambulances.filter(a => Number.isFinite(a.latitude) && Number.isFinite(a.longitude)).map(amb => (
+                                <Marker key={amb.ambulance_id} position={[amb.latitude, amb.longitude]} icon={getIcon(amb.condition)}>
                                     <Popup>
                                         <strong>{amb.ambulance_id}</strong><br />
                                         HR: {amb.hr} | SpO2: {amb.spo2}%<br />

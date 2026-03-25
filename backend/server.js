@@ -22,6 +22,58 @@ if (!process.env.VERCEL) {
     });
 }
 
+// In-memory mock ambulances with stateful positions for demos/fallback
+const ambulanceState = [
+    {
+        ambulance_id: 'AMB-001',
+        patient_id: null,
+        latitude: 34.0522,
+        longitude: -118.2437,
+        status: 'Available',
+        condition: 'Normal',
+        timestamp: new Date()
+    },
+    {
+        ambulance_id: 'AMB-002',
+        patient_id: 'patient-001',
+        latitude: 34.0622,
+        longitude: -118.2537,
+        status: 'Dispatched',
+        condition: 'Warning',
+        timestamp: new Date()
+    },
+    {
+        ambulance_id: 'AMB-003',
+        patient_id: null,
+        latitude: 34.0422,
+        longitude: -118.2337,
+        status: 'Available',
+        condition: 'Normal',
+        timestamp: new Date()
+    }
+];
+
+const broadcastAmbulances = () => {
+    if (!io) return;
+    ambulanceState.forEach((amb) => {
+        io.emit('locationUpdate', amb);
+        io.emit(`ambulance-${amb.ambulance_id}`, amb);
+    });
+};
+
+// Simulate gentle ambulance movement and broadcast every 4 seconds (non-Vercel only)
+if (io) {
+    setInterval(() => {
+        ambulanceState.forEach((amb) => {
+            const jitter = () => (Math.random() - 0.5) * 0.002;
+            amb.latitude = Number((amb.latitude + jitter()).toFixed(5));
+            amb.longitude = Number((amb.longitude + jitter()).toFixed(5));
+            amb.timestamp = new Date();
+        });
+        broadcastAmbulances();
+    }, 4000);
+}
+
 app.use(cors());
 app.use(express.json());
 
@@ -83,6 +135,15 @@ app.post('/api/vitals', verifyApiKey, async (req, res) => {
         if (io) {
             io.emit('vitalsUpdate', vital);
             io.emit(`vitals-${patientId}`, vital);
+            io.emit('locationUpdate', {
+                ambulance_id: patientId,
+                patient_id: patientId,
+                latitude,
+                longitude,
+                status: 'Dispatched',
+                condition,
+                timestamp: vital.timestamp
+            });
         }
 
         res.status(201).json(vital);
@@ -113,6 +174,15 @@ app.post('/api/location', async (req, res) => {
 
         if (io) {
             io.emit('vitalsUpdate', vital);
+            io.emit('locationUpdate', {
+                ambulance_id: patientId,
+                patient_id: patientId,
+                latitude: vital.latitude,
+                longitude: vital.longitude,
+                status: 'Dispatched',
+                condition: vital.condition,
+                timestamp: vital.timestamp
+            });
             io.emit(`location-${patientId}`, vital);
             io.emit(`vitals-${patientId}`, vital);
         }
@@ -159,34 +229,7 @@ app.get('/api/vitals/:id', async (req, res) => {
 
 app.get('/api/ambulances', async (req, res) => {
     try {
-        // Return mock ambulances for demo
-        const ambulances = [
-            {
-                ambulance_id: 'AMB-001',
-                patient_id: null,
-                latitude: 34.0522,
-                longitude: -118.2437,
-                status: 'Available',
-                timestamp: new Date()
-            },
-            {
-                ambulance_id: 'AMB-002',
-                patient_id: 'patient-001',
-                latitude: 34.0622,
-                longitude: -118.2537,
-                status: 'Dispatched',
-                timestamp: new Date()
-            },
-            {
-                ambulance_id: 'AMB-003',
-                patient_id: null,
-                latitude: 34.0422,
-                longitude: -118.2337,
-                status: 'Available',
-                timestamp: new Date()
-            }
-        ];
-        res.json(ambulances);
+        res.json(ambulanceState);
     } catch (error) {
         res.status(500).json({ error: 'Server error' });
     }
@@ -194,13 +237,14 @@ app.get('/api/ambulances', async (req, res) => {
 
 app.get('/api/ambulance/:id', async (req, res) => {
     try {
-        // Return mock ambulance data for the specific ID
-        const ambulance = {
+        const found = ambulanceState.find(a => a.ambulance_id === req.params.id);
+        const ambulance = found || {
             ambulance_id: req.params.id,
-            patient_id: req.params.id === 'AMB-002' ? 'patient-001' : null,
-            latitude: 34.0522 + Math.random() * 0.01,
-            longitude: -118.2437 + Math.random() * 0.01,
-            status: req.params.id === 'AMB-002' ? 'Dispatched' : 'Available',
+            patient_id: null,
+            latitude: 34.0522,
+            longitude: -118.2437,
+            status: 'Available',
+            condition: 'Normal',
             timestamp: new Date()
         };
         res.json(ambulance);

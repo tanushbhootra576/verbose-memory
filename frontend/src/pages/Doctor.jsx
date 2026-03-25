@@ -22,10 +22,23 @@ export default function Doctor() {
         const socket = io(apiUrl);
 
         socket.on('vitalsUpdate', (data) => {
+            console.log('[Doctor] vitalsUpdate', data);
             // Assume the first incoming data is our ESP32 target
-            setMainVitals(data);
+            setMainVitals({
+                hr: data.hr ?? data.heartRate ?? '--',
+                spo2: data.spo2 ?? data.spO2 ?? '--',
+                temperature: data.temperature ?? '--',
+                condition: data.condition || 'Normal',
+                timestamp: data.timestamp
+            });
             setHistory(prev => {
-                const newHist = [...prev, data].slice(-20);
+                const normalized = {
+                    hr: data.hr ?? data.heartRate ?? 0,
+                    spo2: data.spo2 ?? data.spO2 ?? 0,
+                    temperature: data.temperature ?? 0,
+                    timestamp: data.timestamp || Date.now()
+                };
+                const newHist = [...prev, normalized].slice(-20);
                 return newHist;
             });
         });

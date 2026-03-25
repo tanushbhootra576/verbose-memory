@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import axios from 'axios';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -41,9 +42,17 @@ export default function Ambulance() {
 
     useEffect(() => {
         const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        axios.get(`${apiUrl}/api/ambulance/${id}`)
+            .then(res => {
+                setData(res.data);
+                console.log('[Ambulance] initial', res.data);
+            })
+            .catch(err => console.error('Ambulance fetch error', err));
+
         const socket = io(apiUrl);
         socket.on(`ambulance-${id}`, (update) => {
-            setData(update);
+            console.log('[Ambulance] socket update', update);
+            setData(prev => ({ ...prev, ...update }));
         });
         return () => socket.disconnect();
     }, [id]);
@@ -69,9 +78,11 @@ export default function Ambulance() {
                 <MapContainer center={[data.latitude, data.longitude]} zoom={15} style={{ height: '100%', width: '100%' }}>
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <TrackerMap lat={data.latitude} lng={data.longitude} />
-                    <Marker position={[data.latitude, data.longitude]} icon={getIcon(data.condition)}>
-                        <Popup>Ambulance {id}</Popup>
-                    </Marker>
+                    {Number.isFinite(data.latitude) && Number.isFinite(data.longitude) && (
+                        <Marker position={[data.latitude, data.longitude]} icon={getIcon(data.condition)}>
+                            <Popup>Ambulance {id}</Popup>
+                        </Marker>
+                    )}
                 </MapContainer>
             </div>
         </div>
