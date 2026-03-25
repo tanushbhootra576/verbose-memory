@@ -14,9 +14,7 @@ L.Icon.Default.mergeOptions({
 
 export default function AdminDashboard() {
     const [ambulances, setAmbulances] = useState([]);
-    const [stats, setStats] = useState({ totalPatients: 120, criticalCases: 5 }); // Mocked overall stats for UI
-
-    useEffect(() => {
+  const [stats] = useState({ totalPatients: 120, criticalCases: 5 }); // Mocked overall stats for UI
         fetchAmbulances();
         // Poll every 10 seconds for ambulance location updates
         const interval = setInterval(fetchAmbulances, 10000);
