@@ -7,7 +7,8 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-const socket = io('http://localhost:5000');
+const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const socket = io(apiUrl);
 
 export default function DoctorDashboard() {
     const { patientId } = useParams();
@@ -18,12 +19,12 @@ export default function DoctorDashboard() {
 
     useEffect(() => {
         // Fetch patient info
-        axios.get(`http://localhost:5000/api/patient/${patientId}`)
+        axios.get(`${apiUrl}/api/patient/${patientId}`)
             .then(res => setPatient(res.data))
             .catch(err => console.error(err));
 
         // Fetch vital history
-        axios.get(`http://localhost:5000/api/vitals/${patientId}`)
+        axios.get(`${apiUrl}/api/vitals/${patientId}`)
             .then(res => {
                 const sorted = res.data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
                 setHistory(sorted);

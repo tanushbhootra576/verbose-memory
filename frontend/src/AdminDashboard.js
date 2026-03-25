@@ -25,7 +25,8 @@ export default function AdminDashboard() {
 
     const fetchAmbulances = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/ambulance');
+            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const res = await axios.get(`${apiUrl}/api/ambulance`);
             setAmbulances(res.data);
         } catch (err) {
             console.error(err);
