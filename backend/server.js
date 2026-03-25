@@ -10,13 +10,17 @@ const { Patient, Vitals, Ambulance } = require('./models');
 const app = express();
 const server = http.createServer(app);
 
-// WebSocket Setup
-const io = new Server(server, {
-    cors: {
-        origin: '*',
-        methods: ["GET", "POST"]
-    }
-});
+// WebSocket Setup - disabled in Vercel serverless
+let io;
+if (!process.env.VERCEL) {
+    const { Server } = require('socket.io');
+    io = new Server(server, {
+        cors: {
+            origin: '*',
+            methods: ["GET", "POST"]
+        }
+    });
+}
 
 app.use(cors());
 app.use(express.json());
@@ -76,8 +80,10 @@ app.post('/api/vitals', verifyApiKey, async (req, res) => {
         console.log(`Saved Vital for ${patientId}: lat=${latitude}, lng=${longitude}`);
 
         // Broadcast via WebSocket to subscribers of this patient and globally
-        io.emit('vitalsUpdate', vital);
-        io.emit(`vitals-${patientId}`, vital);
+        if (io) {
+            io.emit('vitalsUpdate', vital);
+            io.emit(`vitals-${patientId}`, vital);
+        }
 
         res.status(201).json(vital);
     } catch (error) {
@@ -105,9 +111,11 @@ app.post('/api/location', async (req, res) => {
         });
         await vital.save();
 
-        io.emit('vitalsUpdate', vital);
-        io.emit(`location-${patientId}`, vital);
-        io.emit(`vitals-${patientId}`, vital);
+        if (io) {
+            io.emit('vitalsUpdate', vital);
+            io.emit(`location-${patientId}`, vital);
+            io.emit(`vitals-${patientId}`, vital);
+        }
 
         res.status(200).json(vital);
     } catch (error) {
@@ -201,13 +209,19 @@ app.get('/api/ambulance/:id', async (req, res) => {
     }
 });
 
-io.on('connection', (socket) => {
-    console.log('New client connected:', socket.id);
-    socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
-});
+if (io) {
+    io.on('connection', (socket) => {
+        console.log('New client connected:', socket.id);
+        socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
+    });
+}
 
 const PORT = process.env.PORT || 5000;
-if (!process.env.VERCEL) {
+
+// For Vercel deployment, export the app
+if (process.env.VERCEL) {
+    module.exports = app;
+} else {
+    // For local development
     server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
-module.exports = app;
