@@ -29,12 +29,13 @@ export default function Management() {
     const [ambulances, setAmbulances] = useState([]);
 
     useEffect(() => {
-        axios.get('http://localhost:5000/api/ambulances').then(res => {
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        axios.get(`${apiUrl}/api/ambulances`).then(res => {
             const data = res.data.map(a => ({ ...a, hr: '--', spo2: '--', temp: '--', condition: 'Normal' }));
             setAmbulances(data);
         });
 
-        const socket = io('http://localhost:5000');
+        const socket = io(apiUrl);
         socket.on('locationUpdate', (update) => {
             setAmbulances(prev => prev.map(a => a.ambulance_id === update.ambulance_id ? { ...a, ...update } : a));
         });

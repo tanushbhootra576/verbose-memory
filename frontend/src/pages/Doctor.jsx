@@ -18,7 +18,8 @@ export default function Doctor() {
     ]);
 
     useEffect(() => {
-        const socket = io('http://localhost:5000');
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const socket = io(apiUrl);
 
         socket.on('vitalsUpdate', (data) => {
             // Assume the first incoming data is our ESP32 target
