@@ -42,6 +42,11 @@ const verifyToken = (req, res, next) => {
 };
 
 // --- REST APIs ---
+// GET /api/health -> Health Check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // POST /api/vitals -> Receive ESP32 data (Internal / IoT)
 app.post('/api/vitals', verifyApiKey, async (req, res) => {
     try {
@@ -124,7 +129,7 @@ const PORT = process.env.PORT || 5000;
 
 // Only listen locally, allow Vercel to handle execution in Serverless mode
 if (!process.env.VERCEL) {
-  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
 
 // Export the express app to be consumed as a Serverless Function
