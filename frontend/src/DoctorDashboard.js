@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import io from 'socket.io-client';
 import axios from 'axios';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
@@ -8,7 +7,6 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-const socket = io(apiUrl);
 
 export default function DoctorDashboard() {
     const { patientId } = useParams();
@@ -125,3 +123,4 @@ export default function DoctorDashboard() {
         </div>
     );
 }
+
