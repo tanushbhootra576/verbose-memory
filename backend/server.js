@@ -149,6 +149,58 @@ app.get('/api/vitals/:id', async (req, res) => {
     }
 });
 
+app.get('/api/ambulances', async (req, res) => {
+    try {
+        // Return mock ambulances for demo
+        const ambulances = [
+            {
+                ambulance_id: 'AMB-001',
+                patient_id: null,
+                latitude: 34.0522,
+                longitude: -118.2437,
+                status: 'Available',
+                timestamp: new Date()
+            },
+            {
+                ambulance_id: 'AMB-002',
+                patient_id: 'patient-001',
+                latitude: 34.0622,
+                longitude: -118.2537,
+                status: 'Dispatched',
+                timestamp: new Date()
+            },
+            {
+                ambulance_id: 'AMB-003',
+                patient_id: null,
+                latitude: 34.0422,
+                longitude: -118.2337,
+                status: 'Available',
+                timestamp: new Date()
+            }
+        ];
+        res.json(ambulances);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/ambulance/:id', async (req, res) => {
+    try {
+        // Return mock ambulance data for the specific ID
+        const ambulance = {
+            ambulance_id: req.params.id,
+            patient_id: req.params.id === 'AMB-002' ? 'patient-001' : null,
+            latitude: 34.0522 + Math.random() * 0.01,
+            longitude: -118.2437 + Math.random() * 0.01,
+            status: req.params.id === 'AMB-002' ? 'Dispatched' : 'Available',
+            timestamp: new Date()
+        };
+        res.json(ambulance);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 io.on('connection', (socket) => {
     console.log('New client connected:', socket.id);
     socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
