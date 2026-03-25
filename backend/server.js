@@ -128,7 +128,7 @@ app.get('/api/patients', async (req, res) => {
     try {
         const patients = await Patient.find();
         const patientsWithVitals = await Promise.all(patients.map(async p => {
-            const vitals = await Vitals.findOne({ patientId: p._id }).sort({ timestamp: -1 });
+            const vitals = await Vitals.findOne({ patient_id: p._id }).sort({ timestamp: -1 });
             return { ...p._doc, vitals };
         }));
         res.json(patientsWithVitals);
