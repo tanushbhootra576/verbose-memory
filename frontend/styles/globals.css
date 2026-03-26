@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Variables ────────────────────────────────────────────── */
+:root {
+  --bg:          #f0f4f8;
+  --surface:     #ffffff;
+  --card:        #ffffff;
+  --border:      #e2e8f0;
+  --text:        #0f172a;
+  --muted:       #64748b;
+  --accent:      #3b82f6;
+}
+
+.dark {
+  --bg:          #0f172a;
+  --surface:     #1e293b;
+  --card:        #263248;
+  --border:      #334155;
+  --text:        #f1f5f9;
+  --muted:       #94a3b8;
+  --accent:      #60a5fa;
+}
+
+/* ─── Base ────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  @apply font-sans antialiased;
+  background-color: var(--bg);
+  color: var(--text);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ─── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ─── Glass morphism ──────────────────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.dark .glass {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(51, 65, 85, 0.6);
+}
+
+/* ─── Cards ───────────────────────────────────────────────────── */
+.card {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.12); }
+
+/* ─── Status badges ────────────────────────────────────────────── */
+.status-normal   { @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400; }
+.status-warning  { @apply bg-amber-100   text-amber-700   dark:bg-amber-900/30   dark:text-amber-400; }
+.status-critical { @apply bg-red-100     text-red-700     dark:bg-red-900/30     dark:text-red-400; }
+
+/* ─── Vital value displays ─────────────────────────────────────── */
+.vital-value {
+  @apply font-mono font-bold text-3xl tabular-nums;
+}
+
+/* ─── Pulsing dot for live indicators ─────────────────────────── */
+.pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  position: relative;
+}
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+.pulse-dot.green::after  { background: rgba(16, 185, 129, 0.4); }
+.pulse-dot.red::after    { background: rgba(239, 68, 68, 0.4); }
+.pulse-dot.yellow::after { background: rgba(245, 158, 11, 0.4); }
+
+/* ─── Leaflet Map fixes ────────────────────────────────────────── */
+.leaflet-container {
+  background: #1e293b !important;
+  border-radius: 12px;
+}
+.leaflet-tile-pane { filter: brightness(0.9) saturate(0.8); }
+.dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.9) saturate(0.7); }
+
+/* ─── Chart.js canvas ─────────────────────────────────────────── */
+canvas { max-width: 100%; }
+
+/* ─── Utility classes ─────────────────────────────────────────── */
+.text-gradient {
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.border-gradient {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    linear-gradient(135deg, #3b82f6, #8b5cf6) border-box;
+}
+
+/* ─── Animations ──────────────────────────────────────────────── */
+@keyframes fadeIn       { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp      { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes slideInRight { from { transform: translateX(16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.animate-fade-in        { animation: fadeIn 0.3s ease-out; }
+.animate-slide-up       { animation: slideUp 0.4s ease-out; }
+.animate-slide-in-right { animation: slideInRight 0.3s ease-out; }

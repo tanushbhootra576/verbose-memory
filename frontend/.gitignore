@@ -1,7 +1,7 @@
 node_modules/
-.env
-logs/
-*.log
+.next/
+.env.local
 .DS_Store
-dist/
+out/
 coverage/
+*.log
