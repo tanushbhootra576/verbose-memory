@@ -5,8 +5,9 @@ let socket;
 
 export const getSocket = () => {
     if (socket) return socket;
+    // Allow polling fallback in case the host/load balancer blocks pure WebSocket upgrades
     socket = io(apiUrl, {
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
     });
