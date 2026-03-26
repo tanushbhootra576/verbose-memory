@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
 
-const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const apiUrl = (process.env.REACT_APP_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 let socket;
 
 export const getSocket = () => {
