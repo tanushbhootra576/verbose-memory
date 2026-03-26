@@ -14,13 +14,10 @@ export const DataProvider = ({ children }) => {
 
     const alertTone = useMemo(() => new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='), []);
 
+    // One-time socket subscription (even if not logged in) to keep live updates flowing
     useEffect(() => {
-        if (!token) return undefined;
-        fetchPatients().then(({ data }) => setPatients(data)).catch(() => { });
-        fetchAmbulances().then(({ data }) => setAmbulances(data)).catch(() => { });
-
         const socket = getSocket();
-        socket.on('vitalsUpdate', (payload) => {
+        const handleVitals = (payload) => {
             const normalized = normalizeData(payload);
             setPatients((prev) => {
                 const next = prev.map((p) => p.patient_id === normalized.patient_id ? { ...p, vitals: normalized } : p);
@@ -32,8 +29,9 @@ export const DataProvider = ({ children }) => {
                 setAlerts((prev) => [...prev.slice(-4), { id: normalized.patient_id, message: 'Critical vitals detected', ts: normalized.timestamp }]);
                 alertTone.play().catch(() => { });
             }
-        });
-        socket.on('locationUpdate', (payload) => {
+        };
+
+        const handleLocation = (payload) => {
             const normalized = normalizeData(payload);
             setAmbulances((prev) => {
                 const next = prev.map((a) => a.ambulance_id === (payload.ambulance_id || normalized.patient_id)
@@ -43,9 +41,23 @@ export const DataProvider = ({ children }) => {
                 if (exists) return next;
                 return [...next, { ...normalized, ambulance_id: payload.ambulance_id || normalized.patient_id }];
             });
-        });
-        return () => socket.disconnect();
-    }, [token, alertTone]);
+        };
+
+        socket.on('vitalsUpdate', handleVitals);
+        socket.on('locationUpdate', handleLocation);
+        return () => {
+            socket.off('vitalsUpdate', handleVitals);
+            socket.off('locationUpdate', handleLocation);
+        };
+    }, [alertTone]);
+
+    // Authenticated bootstrap fetch for initial data
+    useEffect(() => {
+        if (!token) return undefined;
+        fetchPatients().then(({ data }) => setPatients(data)).catch(() => { });
+        fetchAmbulances().then(({ data }) => setAmbulances(data)).catch(() => { });
+        return undefined;
+    }, [token]);
 
     return (
         <DataContext.Provider value={{ patients, ambulances, alerts, setPatients, setAmbulances }}>
